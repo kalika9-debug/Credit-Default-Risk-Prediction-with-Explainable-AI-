@@ -4,7 +4,7 @@ from joblib import load
 import shap
 
 # =========================
-# LOAD MODEL (UPDATED)
+# LOAD MODEL
 # =========================
 model = load("model.pkl")
 
@@ -94,7 +94,7 @@ if st.button("🚀 Predict Risk"):
         st.warning("⚠️ Explanation not available")
 
     # =========================
-    # SUGGESTION
+    # RECOMMENDATION
     # =========================
     st.subheader("💡 Recommendation")
 
