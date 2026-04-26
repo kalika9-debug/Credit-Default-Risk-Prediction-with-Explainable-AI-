@@ -1,12 +1,12 @@
 import streamlit as st
 import numpy as np
-import pickle
+from joblib import load
 import shap
 
 # =========================
-# LOAD MODEL
+# LOAD MODEL (UPDATED)
 # =========================
-model = pickle.load(open("model.pkl", "rb"))
+model = load("model.pkl")
 
 # =========================
 # PAGE SETUP
@@ -19,7 +19,6 @@ st.write("Predict loan default risk using Machine Learning")
 # =========================
 # USER INPUTS
 # =========================
-
 st.subheader("📥 Enter Customer Details")
 
 revolving = st.slider("Revolving Utilization (0–1)", 0.0, 1.0, 0.5)
@@ -36,28 +35,23 @@ st.write(f"👉 Calculated Debt Ratio: **{debt:.2f}**")
 late_90 = st.slider("90 Days Late (Serious Delays)", 0, 10, 0)
 
 # =========================
-# PREDICTION BUTTON
+# PREDICTION
 # =========================
-
 if st.button("🚀 Predict Risk"):
 
-    # IMPORTANT: EXACT 10 FEATURES (match training)
     input_data = np.array([[ 
         revolving,
         age,
-        0,              # NumberOfTime30-59DaysPastDueNotWorse
+        0,
         debt,
         income,
-        5,              # NumberOfOpenCreditLinesAndLoans
+        5,
         late_90,
-        1,              # NumberRealEstateLoansOrLines
-        0,              # NumberOfTime60-89DaysPastDueNotWorse
-        1               # NumberOfDependents
+        1,
+        0,
+        1
     ]], dtype=float)
 
-    # =========================
-    # MODEL PREDICTION
-    # =========================
     probability = model.predict_proba(input_data)[0][1]
     risk_percent = probability * 100
 
@@ -82,16 +76,9 @@ if st.button("🚀 Predict Risk"):
         shap_values = explainer(input_data)
 
         feature_names = [
-            "Revolving Utilization",
-            "Age",
-            "30-59 Days Late",
-            "Debt Ratio",
-            "Monthly Income",
-            "Open Credit Lines",
-            "90 Days Late",
-            "Real Estate Loans",
-            "60-89 Days Late",
-            "Dependents"
+            "Revolving Utilization","Age","30-59 Late","Debt Ratio",
+            "Income","Credit Lines","90 Days Late",
+            "Real Estate","60-89 Late","Dependents"
         ]
 
         impacts = shap_values.values[0]
@@ -99,21 +86,21 @@ if st.button("🚀 Predict Risk"):
 
         for i in sorted_idx[:3]:
             if impacts[i] > 0:
-                st.write(f"⬆️ **{feature_names[i]}** is increasing risk")
+                st.write(f"⬆️ {feature_names[i]} increases risk")
             else:
-                st.write(f"⬇️ **{feature_names[i]}** is reducing risk")
+                st.write(f"⬇️ {feature_names[i]} reduces risk")
 
     except:
-        st.warning("⚠️ Explanation not available for this input")
+        st.warning("⚠️ Explanation not available")
 
     # =========================
-    # RECOMMENDATIONS
+    # SUGGESTION
     # =========================
     st.subheader("💡 Recommendation")
 
     if risk_percent >= 50:
-        st.write("👉 Reduce debt and avoid delayed payments")
-        st.write("👉 Improve repayment history before applying for loans")
+        st.write("👉 Reduce debt and avoid late payments")
+        st.write("👉 Improve repayment history")
     else:
-        st.write("👉 Maintain current financial behavior")
-        st.write("👉 Keep debt ratio low and avoid late payments")
+        st.write("👉 Maintain financial discipline")
+        st.write("👉 Keep debt low")
