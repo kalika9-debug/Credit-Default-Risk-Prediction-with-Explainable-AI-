@@ -1,43 +1,28 @@
 import streamlit as st
 import numpy as np
 from joblib import load
-import shap
 
-# =========================
-# LOAD MODEL
-# =========================
-model = load("model.pkl")
+# SAFE LOAD
+try:
+    model = load("model.pkl")
+except Exception as e:
+    st.error(f"Model loading failed: {e}")
+    st.stop()
 
-# =========================
-# PAGE SETUP
-# =========================
-st.set_page_config(page_title="Credit Risk Predictor", layout="centered")
+st.title("💳 Credit Risk Prediction")
 
-st.title("💳 Credit Default Risk Prediction")
-st.write("Predict loan default risk using Machine Learning")
+revolving = st.slider("Revolving Utilization", 0.0, 1.0, 0.5)
+age = st.number_input("Age", 18, 100, 30)
 
-# =========================
-# USER INPUTS
-# =========================
-st.subheader("📥 Enter Customer Details")
-
-revolving = st.slider("Revolving Utilization (0–1)", 0.0, 1.0, 0.5)
-age = st.number_input("Age", min_value=18, max_value=100, value=30)
-
-st.subheader("💡 Debt Ratio Calculator")
-
-total_debt = st.number_input("Total Monthly Debt", min_value=0.0, value=20000.0)
-income = st.number_input("Monthly Income", min_value=1.0, value=30000.0)
+total_debt = st.number_input("Total Debt", 0.0, 1000000.0, 20000.0)
+income = st.number_input("Income", 1.0, 1000000.0, 30000.0)
 
 debt = total_debt / income
-st.write(f"👉 Calculated Debt Ratio: **{debt:.2f}**")
+st.write(f"Debt Ratio: {debt:.2f}")
 
-late_90 = st.slider("90 Days Late (Serious Delays)", 0, 10, 0)
+late_90 = st.slider("90 Days Late", 0, 10, 0)
 
-# =========================
-# PREDICTION
-# =========================
-if st.button("🚀 Predict Risk"):
+if st.button("Predict"):
 
     input_data = np.array([[ 
         revolving,
@@ -50,57 +35,7 @@ if st.button("🚀 Predict Risk"):
         1,
         0,
         1
-    ]], dtype=float)
+    ]])
 
-    probability = model.predict_proba(input_data)[0][1]
-    risk_percent = probability * 100
-
-    st.subheader("📊 Risk Score")
-
-    if risk_percent >= 75:
-        st.error(f"🚨 VERY HIGH RISK ({risk_percent:.1f}%)")
-    elif risk_percent >= 50:
-        st.warning(f"⚠️ HIGH RISK ({risk_percent:.1f}%)")
-    elif risk_percent >= 30:
-        st.info(f"⚠️ MODERATE RISK ({risk_percent:.1f}%)")
-    else:
-        st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
-
-    # =========================
-    # SHAP EXPLANATION
-    # =========================
-    st.subheader("🧠 Why this prediction?")
-
-    try:
-        explainer = shap.Explainer(model)
-        shap_values = explainer(input_data)
-
-        feature_names = [
-            "Revolving Utilization","Age","30-59 Late","Debt Ratio",
-            "Income","Credit Lines","90 Days Late",
-            "Real Estate","60-89 Late","Dependents"
-        ]
-
-        impacts = shap_values.values[0]
-        sorted_idx = np.argsort(np.abs(impacts))[::-1]
-
-        for i in sorted_idx[:3]:
-            if impacts[i] > 0:
-                st.write(f"⬆️ {feature_names[i]} increases risk")
-            else:
-                st.write(f"⬇️ {feature_names[i]} reduces risk")
-
-    except:
-        st.warning("⚠️ Explanation not available")
-
-    # =========================
-    # RECOMMENDATION
-    # =========================
-    st.subheader("💡 Recommendation")
-
-    if risk_percent >= 50:
-        st.write("👉 Reduce debt and avoid late payments")
-        st.write("👉 Improve repayment history")
-    else:
-        st.write("👉 Maintain financial discipline")
-        st.write("👉 Keep debt low")
+    prob = model.predict_proba(input_data)[0][1]
+    st.success(f"Risk: {prob*100:.2f}%")
