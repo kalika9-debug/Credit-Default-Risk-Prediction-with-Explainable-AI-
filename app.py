@@ -3,25 +3,30 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ML
-from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from xgboost import XGBClassifier
 
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Credit Risk App", layout="wide")
+st.set_page_config(page_title="Credit Risk Predictor", layout="wide")
 
-st.title("💳 Credit Risk Predictor")
-st.write("Now powered with ML + fallback safety")
+st.title("💳 Credit Risk Predictor (Internship Level)")
+st.write("XGBoost + ML + Safe Rules")
 
 # =========================
-# LOAD / TRAIN MODEL SAFELY
+# LOAD + TRAIN MODEL
 # =========================
 @st.cache_resource
 def load_model():
     try:
         df = pd.read_csv("credit_data.csv")
+
+        # ✅ MATCH PROJECT DOC
+        df["DebtRatio"] = df["DebtRatio"].clip(0, 3)
 
         features = [
             "RevolvingUtilization",
@@ -33,21 +38,40 @@ def load_model():
         X = df[features]
         y = df["Default"]
 
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        # =========================
+        # LOGISTIC (BASELINE)
+        # =========================
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+        X_train_scaled = scaler.fit_transform(X_train)
 
-        model = LogisticRegression()
-        model.fit(X_scaled, y)
+        lr = LogisticRegression(class_weight="balanced")
+        lr.fit(X_train_scaled, y_train)
 
-        return model, scaler
+        # =========================
+        # XGBOOST (MAIN MODEL)
+        # =========================
+        xgb = XGBClassifier(
+            n_estimators=120,
+            max_depth=4,
+            scale_pos_weight=10,
+            learning_rate=0.1
+        )
+
+        xgb.fit(X_train, y_train)
+
+        return xgb, scaler, lr
 
     except Exception as e:
-        return None, None
+        return None, None, None
 
-model, scaler = load_model()
+model, scaler, lr_model = load_model()
 
 # =========================
-# UI
+# UI INPUT
 # =========================
 col1, col2 = st.columns(2)
 
@@ -64,7 +88,7 @@ with col1:
         st.error("Income must be > 0")
         st.stop()
 
-    debt_ratio = total_debt / income
+    debt_ratio = min(total_debt / income, 3)
     st.write(f"Debt Ratio: {debt_ratio:.2f}")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
@@ -75,25 +99,38 @@ with col1:
 def simple_model():
     score = 0
     score += revolving * 0.4
-    score += min(debt_ratio, 5) * 0.2
+    score += debt_ratio * 0.2
     score += late_90 * 0.1
     score -= age * 0.002
     return max(0, min(score, 1))
 
 # =========================
-# PREDICTION LOGIC
+# PREDICTION
 # =========================
 def predict():
     if model is not None:
         try:
             X = np.array([[revolving, age, debt_ratio, late_90]])
-            X_scaled = scaler.transform(X)
-            prob = model.predict_proba(X_scaled)[0][1]
-            return prob, "ML Model"
+
+            # XGBoost prediction
+            prob = model.predict_proba(X)[0][1]
+
+            # =========================
+            # BUSINESS RULE OVERRIDE
+            # =========================
+            if debt_ratio > 2.5:
+                prob = max(prob, 0.7)
+
+            if late_90 >= 3:
+                prob = max(prob, 0.8)
+
+            return prob, "XGBoost"
+
         except:
-            return simple_model(), "Fallback Model"
+            return simple_model(), "Fallback"
+
     else:
-        return simple_model(), "Fallback Model"
+        return simple_model(), "Fallback"
 
 # =========================
 # OUTPUT
@@ -103,7 +140,7 @@ with col2:
     risk = prob * 100
 
     st.subheader("📊 Risk Score")
-    st.caption(f"Mode: {mode}")
+    st.caption(f"Model Used: {mode}")
 
     st.progress(prob)
 
@@ -115,27 +152,32 @@ with col2:
         st.success(f"✅ LOW RISK ({risk:.1f}%)")
 
     # =========================
-    # FEATURE IMPACT (SAFE)
+    # FEATURE IMPORTANCE (REAL ML)
     # =========================
-    st.subheader("📊 Key Drivers")
+    if model is not None:
+        st.subheader("📊 Feature Importance")
 
-    impacts = [
-        revolving * 0.4,
-        min(debt_ratio, 5) * 0.2,
-        late_90 * 0.1,
-        -age * 0.002
-    ]
+        importance = model.feature_importances_
 
-    df = pd.DataFrame({
-        "Feature": ["Utilization", "Debt Ratio", "Late Payments", "Age"],
-        "Impact": impacts
+        df_imp = pd.DataFrame({
+            "Feature": ["Utilization", "Age", "Debt Ratio", "Late Payments"],
+            "Importance": importance
+        }).sort_values(by="Importance", ascending=True)
+
+        fig, ax = plt.subplots()
+        ax.barh(df_imp["Feature"], df_imp["Importance"])
+
+        st.pyplot(fig)
+
+    # =========================
+    # DEBUG
+    # =========================
+    st.write("DEBUG:", {
+        "revolving": revolving,
+        "age": age,
+        "debt_ratio": debt_ratio,
+        "late_90": late_90
     })
-
-    fig, ax = plt.subplots()
-    ax.barh(df["Feature"], df["Impact"])
-    ax.invert_yaxis()
-
-    st.pyplot(fig)
 
     # =========================
     # DOWNLOAD
@@ -147,7 +189,7 @@ with col2:
         "Income": [income],
         "Late Payments": [late_90],
         "Risk (%)": [risk],
-        "Model Used": [mode]
+        "Model": [mode]
     })
 
     csv = report.to_csv(index=False).encode("utf-8")
