@@ -13,13 +13,18 @@ st.set_page_config(page_title="Credit Risk Dashboard", layout="wide")
 
 st.markdown("""
 <style>
-.block-container {padding-top: 2rem;}
-h1, h2, h3 {color: #1f3b4d;}
-.stMetric {background-color: #f5f7fa; padding: 10px; border-radius: 10px;}
+.block-container {padding-top: 1.5rem;}
+.section-box {
+    background-color: #f8fafc;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+h2 {color: #1f3b4d;}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("## 💳 Credit Risk Dashboard")
+st.markdown("<h2>💳 Credit Risk Dashboard</h2>", unsafe_allow_html=True)
 st.caption("AI-powered credit risk analysis with actionable insights")
 
 # =========================
@@ -45,7 +50,7 @@ def load_model():
         X = df[features]
         y = df["SeriousDlqin2yrs"]
 
-        X_train, X_test, y_train, y_test = train_test_split(
+        X_train, _, y_train, _ = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
 
@@ -58,7 +63,6 @@ def load_model():
         )
 
         model.fit(X_train, y_train)
-
         return model
 
     except:
@@ -67,34 +71,28 @@ def load_model():
 model = load_model()
 
 # =========================
-# TABS
+# INPUT SECTION
 # =========================
-tab1, tab2, tab3 = st.tabs([
-    "📥 Input",
-    "📊 Analysis",
-    "🧠 Recommendations"
-])
+st.markdown("### 📥 Customer Details")
 
-# =========================
-# TAB 1 INPUT
-# =========================
-with tab1:
-    st.subheader("Enter Customer Details")
+col1, col2 = st.columns(2)
 
+with col1:
     revolving = st.slider("Credit Utilization", 0.0, 1.0, 0.3)
     age = st.number_input("Age", 18, 100, 30)
 
+with col2:
     total_debt = st.number_input("Total Debt", value=20000.0)
     income = st.number_input("Income", value=30000.0)
 
-    if income <= 0:
-        st.error("Income must be > 0")
-        st.stop()
+if income <= 0:
+    st.error("Income must be > 0")
+    st.stop()
 
-    debt_ratio = min(total_debt / income, 3)
-    st.metric("Debt Ratio", f"{debt_ratio:.2f}")
+debt_ratio = min(total_debt / income, 3)
+late_90 = st.slider("90 Days Late", 0, 10, 0)
 
-    late_90 = st.slider("90 Days Late", 0, 10, 0)
+st.metric("Debt Ratio", f"{debt_ratio:.2f}")
 
 # =========================
 # FALLBACK MODEL
@@ -116,6 +114,7 @@ def predict():
             X = np.array([[revolving, age, debt_ratio, late_90]])
             prob = model.predict_proba(X)[0][1]
 
+            # business rules
             if debt_ratio > 2.5:
                 prob = max(prob, 0.7)
             if late_90 >= 3:
@@ -131,13 +130,16 @@ prob, mode = predict()
 risk = prob * 100
 
 # =========================
-# TAB 2 ANALYSIS
+# RESULT SECTION
 # =========================
-with tab2:
-    st.subheader("Risk Score")
+st.markdown("---")
+st.markdown("### 📊 Risk Analysis")
 
-    st.metric("Default Probability", f"{risk:.1f}%")
-    st.progress(prob)
+col3, col4 = st.columns([1,2])
+
+with col3:
+    st.metric("Default Risk", f"{risk:.1f}%")
+    st.caption(f"Model: {mode}")
 
     if risk > 70:
         st.error("🚨 High Risk")
@@ -146,60 +148,65 @@ with tab2:
     else:
         st.success("✅ Low Risk")
 
-    if model is not None:
-        st.subheader("Feature Importance")
-
-        importance = model.feature_importances_
-
-        df_imp = pd.DataFrame({
-            "Feature": ["Utilization", "Age", "Debt Ratio", "Late Payments"],
-            "Importance": importance
-        }).sort_values(by="Importance")
-
-        st.bar_chart(df_imp.set_index("Feature"))
+with col4:
+    st.progress(prob)
 
 # =========================
-# TAB 3 RECOMMENDATIONS
+# FEATURE IMPORTANCE
 # =========================
-with tab3:
-    st.subheader("🧠 Personalized Risk Reduction Plan")
+if model is not None:
+    st.markdown("### 📊 Key Drivers")
 
-    tips = []
+    importance = model.feature_importances_
 
-    # Utilization
-    if revolving > 0.8:
-        tips.append("🚨 Reduce credit usage immediately.")
-    elif revolving > 0.5:
-        tips.append("⚠️ Keep utilization below 30%.")
+    df_imp = pd.DataFrame({
+        "Feature": ["Utilization", "Age", "Debt Ratio", "Late Payments"],
+        "Importance": importance
+    }).sort_values(by="Importance")
 
-    # Debt
-    if debt_ratio > 2.5:
-        tips.append("🚨 Reduce debt aggressively or increase income.")
-    elif debt_ratio > 1:
-        tips.append("⚠️ Manage loans and avoid new debt.")
-
-    # Late payments
-    if late_90 >= 3:
-        tips.append("🚨 Multiple late payments detected. Use auto-pay.")
-    elif late_90 > 0:
-        tips.append("⚠️ Avoid late payments using reminders.")
-
-    # Risk level
-    if risk > 70:
-        tips.append("🚨 Avoid taking new loans.")
-    elif risk > 40:
-        tips.append("⚠️ Improve repayment discipline.")
-    else:
-        tips.append("✅ Maintain current financial habits.")
-
-    if len(tips) == 0:
-        tips.append("✅ Financial profile is strong.")
-
-    for i, tip in enumerate(tips, 1):
-        st.write(f"{i}. {tip}")
+    st.bar_chart(df_imp.set_index("Feature"))
 
 # =========================
-# DOWNLOAD REPORT
+# RECOMMENDATIONS
+# =========================
+st.markdown("### 🧠 Personalized Suggestions")
+
+tips = []
+
+# Utilization
+if revolving > 0.8:
+    tips.append("🚨 Reduce credit usage immediately.")
+elif revolving > 0.5:
+    tips.append("⚠️ Keep utilization below 30%.")
+
+# Debt
+if debt_ratio > 2.5:
+    tips.append("🚨 Reduce debt aggressively or increase income.")
+elif debt_ratio > 1:
+    tips.append("⚠️ Avoid taking new loans.")
+
+# Late payments
+if late_90 >= 3:
+    tips.append("🚨 Multiple late payments detected. Use auto-pay.")
+elif late_90 > 0:
+    tips.append("⚠️ Avoid late payments using reminders.")
+
+# Risk level
+if risk > 70:
+    tips.append("🚨 Avoid new credit until situation improves.")
+elif risk > 40:
+    tips.append("⚠️ Improve repayment consistency.")
+else:
+    tips.append("✅ Maintain current financial habits.")
+
+if len(tips) == 0:
+    tips.append("✅ Financial profile is strong.")
+
+for i, tip in enumerate(tips, 1):
+    st.write(f"{i}. {tip}")
+
+# =========================
+# DOWNLOAD
 # =========================
 report = pd.DataFrame({
     "Revolving": [revolving],
@@ -218,5 +225,5 @@ st.download_button(
     csv,
     "risk_report.csv",
     "text/csv",
-    key="download_unique"  # ✅ FIXED ERROR
+    key="download_unique_btn"
 )
