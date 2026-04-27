@@ -9,7 +9,12 @@ import matplotlib.pyplot as plt
 # =========================
 st.set_page_config(page_title="Credit Risk App", layout="wide")
 
-st.title("💳 Credit Risk Prediction")
+st.markdown(
+    "<h1 style='text-align:center;'>💳 Credit Risk Prediction</h1>",
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
 
 # =========================
 # LOAD DATA
@@ -37,16 +42,21 @@ def train_model():
         eval_metric="logloss"
     )
 
-    model.fit(X.values, y.values)  # 🔥 KEY FIX (no feature names)
+    # 🔥 IMPORTANT: remove feature-name dependency
+    model.fit(X.values, y.values)
+
     return model, list(X.columns)
 
 model, feature_names = train_model()
 
 # =========================
-# UI
+# UI LAYOUT
 # =========================
 col1, col2 = st.columns(2)
 
+# =========================
+# INPUT SECTION
+# =========================
 with col1:
     st.subheader("📥 Customer Details")
 
@@ -61,7 +71,12 @@ with col1:
         st.stop()
 
     debt_ratio = np.clip(total_debt / income, 0, 5)
-    st.write(f"Debt Ratio: {debt_ratio:.2f}")
+
+    st.markdown(f"""
+    <div style="padding:10px;border-radius:10px;background:#111;color:white;">
+        Debt Ratio: <b>{debt_ratio:.2f}</b>
+    </div>
+    """, unsafe_allow_html=True)
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
@@ -81,31 +96,33 @@ input_dict = {
     "NumberOfDependents": 1
 }
 
-# 👉 Create array in exact order
+# Convert to correct order
 input_list = [input_dict.get(col, 0) for col in feature_names]
 input_array = np.array([input_list])
 
 # =========================
-# PREDICTION
+# OUTPUT SECTION
 # =========================
 with col2:
+    st.subheader("📊 Risk Score")
 
     prob = model.predict_proba(input_array)[0][1]
     prob = float(np.clip(prob, 0, 1))
     risk = prob * 100
 
-    st.subheader("📊 Risk Score")
     st.progress(prob)
 
-    if risk > 70:
-        st.error(f"🚨 High Risk ({risk:.1f}%)")
-    elif risk > 40:
-        st.warning(f"⚠️ Medium Risk ({risk:.1f}%)")
+    if risk >= 75:
+        st.error(f"🚨 VERY HIGH RISK ({risk:.1f}%)")
+    elif risk >= 50:
+        st.warning(f"⚠️ HIGH RISK ({risk:.1f}%)")
+    elif risk >= 30:
+        st.info(f"⚠️ MODERATE RISK ({risk:.1f}%)")
     else:
-        st.success(f"✅ Low Risk ({risk:.1f}%)")
+        st.success(f"✅ LOW RISK ({risk:.1f}%)")
 
     # =========================
-    # FEATURE IMPORTANCE
+    # FEATURE IMPORTANCE CHART
     # =========================
     st.subheader("📊 Key Drivers")
 
@@ -117,9 +134,24 @@ with col2:
     }).sort_values(by="Importance", ascending=False)
 
     fig, ax = plt.subplots()
-    top = imp_df.head(5)
 
+    top = imp_df.head(5)
     ax.barh(top["Feature"], top["Importance"])
     ax.invert_yaxis()
 
     st.pyplot(fig)
+
+    # =========================
+    # DOWNLOAD REPORT
+    # =========================
+    report = pd.DataFrame([input_dict])
+    report["Risk (%)"] = risk
+
+    csv = report.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        "📄 Download Report",
+        csv,
+        "credit_risk_report.csv",
+        "text/csv"
+    )
