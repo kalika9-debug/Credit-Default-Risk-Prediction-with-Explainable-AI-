@@ -173,6 +173,76 @@ with col2:
         st.success(f"✅ LOW RISK ({risk:.1f}%)")
 
     # =========================
+# SMART RISK REDUCTION ENGINE
+# =========================
+st.subheader("🧠 Personalized Risk Reduction Plan")
+
+tips = []
+
+# =========================
+# UTILIZATION
+# =========================
+if revolving > 0.8:
+    tips.append("🚨 Your credit utilization is extremely high. Pay down balances immediately.")
+    tips.append("💳 Avoid using credit cards until utilization drops below 30%.")
+elif revolving > 0.5:
+    tips.append("⚠️ Reduce credit usage. Try to keep it under 30% for better score.")
+elif revolving > 0.3:
+    tips.append("ℹ️ Slightly high utilization. Monitor spending closely.")
+
+# =========================
+# DEBT RATIO
+# =========================
+if debt_ratio > 2.5:
+    tips.append("🚨 Debt ratio is critically high. Consider restructuring loans.")
+    tips.append("💰 Increase income sources or aggressively reduce liabilities.")
+elif debt_ratio > 1:
+    tips.append("⚠️ High debt ratio. Try reducing EMIs or avoid new loans.")
+elif debt_ratio > 0.5:
+    tips.append("ℹ️ Moderate debt. Maintain balance between income and expenses.")
+
+# =========================
+# LATE PAYMENTS
+# =========================
+if late_90 >= 3:
+    tips.append("🚨 Frequent late payments detected. This severely impacts creditworthiness.")
+    tips.append("📅 Set auto-debit for EMIs to avoid future delays.")
+elif late_90 > 0:
+    tips.append("⚠️ Avoid late payments. Even 1 delay affects your profile.")
+    tips.append("🔔 Use reminders or auto-pay features.")
+
+# =========================
+# AGE / HISTORY
+# =========================
+if age < 25:
+    tips.append("📈 Build credit history using small, timely repayments.")
+elif age > 60:
+    tips.append("🏦 Maintain stable financial behavior to preserve credit reliability.")
+
+# =========================
+# RISK LEVEL BASED ADVICE
+# =========================
+if risk > 75:
+    tips.append("🚨 High risk profile: Avoid taking new loans until metrics improve.")
+    tips.append("📉 Focus on reducing debt and improving repayment consistency.")
+elif risk > 40:
+    tips.append("⚠️ Moderate risk: Improve utilization and payment discipline.")
+else:
+    tips.append("✅ Low risk: Continue maintaining healthy financial habits.")
+
+# =========================
+# FALLBACK (NO ISSUES)
+# =========================
+if len(tips) == 0:
+    tips.append("✅ Your financial profile is strong. Keep maintaining discipline.")
+
+# =========================
+# DISPLAY NICELY
+# =========================
+for i, tip in enumerate(tips, 1):
+    st.write(f"{i}. {tip}")
+
+    # =========================
     # FEATURE IMPORTANCE
     # =========================
     if model is not None:
