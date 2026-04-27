@@ -3,6 +3,19 @@ import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
+import shap
+
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(page_title="Credit Risk Predictor", layout="centered")
+
+st.markdown(
+    "<h1 style='text-align: center;'>💳 Credit Risk Prediction</h1>",
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
 
 # =========================
 # LOAD DATA
@@ -16,7 +29,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# TRAIN MODEL (NO FILE NEEDED)
+# TRAIN MODEL
 # =========================
 @st.cache_resource
 def train_model():
@@ -35,30 +48,53 @@ def train_model():
     )
 
     model.fit(X_train, y_train)
-    return model
+    return model, X
 
-model = train_model()
+model, X = train_model()
 
 # =========================
-# UI
+# INPUT SECTION
 # =========================
-st.title("💳 Credit Risk Prediction")
+st.subheader("📥 Enter Customer Details")
 
-revolving = st.slider("Revolving Utilization", 0.0, 1.0, 0.5)
+revolving = st.slider("Revolving Utilization (0–1)", 0.0, 1.0, 0.5)
 age = st.number_input("Age", 18, 100, 30)
 
-total_debt = st.number_input("Total Debt", 0.0, 100000.0, 20000.0)
-income = st.number_input("Income", 1.0, 100000.0, 30000.0)
+# SAFE INPUTS (NO LIMITS)
+total_debt = st.number_input(
+    "Total Debt",
+    min_value=0.0,
+    value=20000.0,
+    step=1000.0
+)
+
+income = st.number_input(
+    "Income",
+    min_value=1.0,
+    value=30000.0,
+    step=1000.0
+)
+
+# SAFETY CHECK
+if income <= 0:
+    st.error("❌ Income must be greater than 0")
+    st.stop()
 
 debt = total_debt / income
-st.write(f"Debt Ratio: {debt:.2f}")
+
+if debt > 10:
+    st.warning("⚠️ Extremely high debt ratio")
+
+st.write(f"📊 Debt Ratio: **{debt:.2f}**")
 
 late_90 = st.slider("90 Days Late", 0, 10, 0)
+
+st.markdown("---")
 
 # =========================
 # PREDICTION
 # =========================
-if st.button("Predict"):
+if st.button("🚀 Predict Risk"):
 
     input_data = np.array([[ 
         revolving,
@@ -74,5 +110,59 @@ if st.button("Predict"):
     ]])
 
     prob = model.predict_proba(input_data)[0][1]
+    risk_percent = prob * 100
 
-    st.success(f"Risk: {prob*100:.2f}%")
+    # =========================
+    # 🎯 RISK METER UI
+    # =========================
+    st.subheader("📊 Risk Level")
+
+    st.progress(prob)
+
+    if risk_percent >= 75:
+        st.error(f"🚨 VERY HIGH RISK ({risk_percent:.1f}%)")
+    elif risk_percent >= 50:
+        st.warning(f"⚠️ HIGH RISK ({risk_percent:.1f}%)")
+    elif risk_percent >= 30:
+        st.info(f"⚠️ MODERATE RISK ({risk_percent:.1f}%)")
+    else:
+        st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
+
+    # =========================
+    # 🧠 SHAP EXPLANATION
+    # =========================
+    st.subheader("🧠 Why this prediction?")
+
+    try:
+        explainer = shap.Explainer(model, X)
+        shap_values = explainer(input_data)
+
+        feature_names = X.columns
+        impacts = shap_values.values[0]
+
+        sorted_idx = np.argsort(np.abs(impacts))[::-1]
+
+        for i in sorted_idx[:3]:
+            if impacts[i] > 0:
+                st.write(f"⬆️ **{feature_names[i]}** increases risk")
+            else:
+                st.write(f"⬇️ **{feature_names[i]}** reduces risk")
+
+    except:
+        st.warning("⚠️ Explanation unavailable")
+
+    # =========================
+    # 💡 SMART SUGGESTIONS
+    # =========================
+    st.subheader("💡 Recommendations")
+
+    if risk_percent >= 50:
+        st.write("👉 Reduce debt levels")
+        st.write("👉 Avoid late payments")
+        st.write("👉 Improve repayment history")
+    else:
+        st.write("👉 Maintain current financial habits")
+        st.write("👉 Keep debt ratio low")
+
+    st.markdown("---")
+    st.success("✅ Analysis completed")
