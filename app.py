@@ -1,11 +1,11 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
-import shap
 
 # =========================
 # PAGE CONFIG
@@ -27,7 +27,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# TRAIN MODEL
+# TRAIN MODEL (PROPER PIPELINE)
 # =========================
 @st.cache_resource
 def train_model():
@@ -47,15 +47,14 @@ def train_model():
     ])
 
     model.fit(X, y)
-    return model, X
+    return model, list(X.columns)
 
-model, X = train_model()
-feature_names = list(X.columns)
+model, feature_names = train_model()
 
 # =========================
 # UI LAYOUT
 # =========================
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns(2)
 
 # =========================
 # INPUTS
@@ -73,22 +72,26 @@ with col1:
         st.error("Income must be > 0")
         st.stop()
 
-    debt_ratio = np.clip(total_debt / income, 0, 5)
-    income_scaled = np.log1p(income)
+    # =========================
+    # ENGINEERED FEATURES (IMPORTANT)
+    # =========================
+    debt_ratio = total_debt / income
+    debt_ratio = np.clip(debt_ratio, 0, 5)
 
-    st.markdown(f"""
-    <div style="padding:10px;border-radius:10px;background-color:#111;">
-        <b>Debt Ratio:</b> {debt_ratio:.2f}
-    </div>
-    """, unsafe_allow_html=True)
+    income_scaled = np.log1p(income)  # MUCH better than raw scaling
+
+    st.write(f"📊 Debt Ratio: **{debt_ratio:.2f}**")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
 # =========================
-# OUTPUT
+# LIVE PREDICTION (NO BUTTON)
 # =========================
 with col2:
 
+    # =========================
+    # BUILD INPUT (CONSISTENT)
+    # =========================
     input_dict = {
         "RevolvingUtilizationOfUnsecuredLines": revolving,
         "age": age,
@@ -102,17 +105,17 @@ with col2:
         "NumberOfDependents": 1
     }
 
-    input_df = pd.DataFrame([input_dict])
+    safe_input = {col: input_dict.get(col, 0) for col in feature_names}
+    input_df = pd.DataFrame([safe_input])
 
     # =========================
-    # PREDICTION
+    # MODEL PREDICTION
     # =========================
     prob = model.predict_proba(input_df)[0][1]
     prob = float(np.clip(prob, 0, 1))
     risk_percent = prob * 100
 
     st.subheader("📊 Risk Score")
-
     st.progress(prob)
 
     if risk_percent >= 75:
@@ -125,57 +128,37 @@ with col2:
         st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
 
     # =========================
-    # SHAP (SAFE VERSION)
+    # MODEL-BASED EXPLANATION
     # =========================
-    st.subheader("🧠 Model Explanation (SHAP)")
+    st.subheader("🧠 Key Drivers")
 
-    try:
-        xgb_model = model.named_steps["xgb"]
-        explainer = shap.TreeExplainer(xgb_model)
-        shap_values = explainer.shap_values(input_df)
+    xgb_model = model.named_steps["xgb"]
+    importances = xgb_model.feature_importances_
 
-        shap_df = pd.DataFrame({
-            "Feature": feature_names,
-            "Impact": shap_values[0]
-        })
+    input_array = input_df.values[0]
+    contributions = input_array * importances
 
-        shap_df["Abs"] = np.abs(shap_df["Impact"])
-        shap_df = shap_df.sort_values(by="Abs", ascending=False)
+    contrib_df = pd.DataFrame({
+        "Feature": feature_names,
+        "Impact": contributions
+    })
 
-        # show top 3
-        for _, row in shap_df.head(3).iterrows():
-            direction = "⬆️ increases risk" if row["Impact"] > 0 else "⬇️ reduces risk"
-            st.write(f"{direction}: **{row['Feature']}**")
+    contrib_df["Abs"] = np.abs(contrib_df["Impact"])
+    contrib_df = contrib_df.sort_values(by="Abs", ascending=False)
 
-        # =========================
-        # SINGLE CLEAN CHART
-        # =========================
-        st.subheader("📊 SHAP Impact")
-
-        fig, ax = plt.subplots()
-        top = shap_df.head(5)
-
-        ax.barh(top["Feature"], top["Impact"])
-        ax.invert_yaxis()
-
-        st.pyplot(fig)
-
-    except:
-        st.warning("SHAP explanation unavailable")
+    for _, row in contrib_df.head(3).iterrows():
+        direction = "⬆️ increases risk" if row["Impact"] > 0 else "⬇️ reduces risk"
+        st.write(f"{direction}: **{row['Feature']}**")
 
     # =========================
-    # DOWNLOAD REPORT
+    # SINGLE STRONG CHART
     # =========================
-    st.subheader("📄 Download Report")
+    st.subheader("📊 Top Feature Impact")
 
-    report = input_df.copy()
-    report["Risk (%)"] = risk_percent
+    fig, ax = plt.subplots()
+    top = contrib_df.head(5)
 
-    csv = report.to_csv(index=False).encode("utf-8")
+    ax.barh(top["Feature"], top["Impact"])
+    ax.invert_yaxis()
 
-    st.download_button(
-        label="Download Report",
-        data=csv,
-        file_name="credit_risk_report.csv",
-        mime="text/csv"
-    )
+    st.pyplot(fig)
