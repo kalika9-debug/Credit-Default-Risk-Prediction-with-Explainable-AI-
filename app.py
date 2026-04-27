@@ -48,7 +48,7 @@ def train_model():
 model, feature_names = train_model()
 
 # =========================
-# INPUT UI
+# UI LAYOUT
 # =========================
 col1, col2 = st.columns(2)
 
@@ -62,24 +62,24 @@ with col1:
     income = st.number_input("Income", min_value=1.0, value=30000.0, step=1000.0)
 
     if income <= 0:
-        st.error("Income must be > 0")
+        st.error("❌ Income must be greater than 0")
         st.stop()
 
     debt = total_debt / income
-    st.write(f"📊 Debt Ratio: {debt:.2f}")
+    st.write(f"📊 Debt Ratio: **{debt:.2f}**")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
     predict = st.button("🚀 Predict Risk")
 
 # =========================
-# OUTPUT
+# OUTPUT SECTION
 # =========================
 with col2:
 
     if predict:
 
-        # BASE INPUT (minimal)
+        # SAFE INPUT BUILD
         input_dict = {
             "RevolvingUtilizationOfUnsecuredLines": revolving,
             "age": age,
@@ -88,14 +88,9 @@ with col2:
             "NumberOfTimes90DaysLate": late_90
         }
 
-        # SAFE FEATURE BUILD (THIS IS THE KEY FIX)
         safe_input = {}
-
         for col in feature_names:
-            if col in input_dict:
-                safe_input[col] = input_dict[col]
-            else:
-                safe_input[col] = 0  # fill missing safely
+            safe_input[col] = input_dict.get(col, 0)
 
         input_df = pd.DataFrame([safe_input])
 
@@ -103,10 +98,15 @@ with col2:
         # PREDICTION
         # =========================
         prob = model.predict_proba(input_df)[0][1]
-        risk_percent = prob * 100
+        safe_prob = float(prob)
+        safe_prob = max(0.0, min(1.0, safe_prob))  # clamp
+
+        risk_percent = safe_prob * 100
 
         st.subheader("📊 Risk Score")
-        st.progress(prob)
+
+        # ✅ FIXED PROGRESS BAR
+        st.progress(safe_prob)
 
         if risk_percent >= 75:
             st.error(f"🚨 VERY HIGH RISK ({risk_percent:.1f}%)")
@@ -123,7 +123,8 @@ with col2:
         st.subheader("📈 Risk Visualization")
 
         fig, ax = plt.subplots()
-        ax.bar(["Safe", "Risk"], [1 - prob, prob])
+        ax.bar(["Safe", "Risk"], [1 - safe_prob, safe_prob])
+        ax.set_ylabel("Probability")
         st.pyplot(fig)
 
         # =========================
@@ -158,5 +159,17 @@ with col2:
 
         if revolving > 0.8:
             st.write("⬆️ High credit usage increases risk")
+
+        # =========================
+        # RECOMMENDATIONS
+        # =========================
+        st.subheader("💡 Recommendations")
+
+        if risk_percent >= 50:
+            st.write("👉 Reduce debt levels")
+            st.write("👉 Avoid late payments")
+            st.write("👉 Improve repayment history")
+        else:
+            st.write("👉 Maintain current financial discipline")
 
         st.success("✅ Analysis complete")
