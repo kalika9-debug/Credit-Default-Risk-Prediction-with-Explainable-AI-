@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
-import shap
 
 # =========================
 # PAGE CONFIG
@@ -48,9 +47,9 @@ def train_model():
     )
 
     model.fit(X_train, y_train)
-    return model, X
+    return model
 
-model, X = train_model()
+model = train_model()
 
 # =========================
 # INPUT SECTION
@@ -60,7 +59,7 @@ st.subheader("📥 Enter Customer Details")
 revolving = st.slider("Revolving Utilization (0–1)", 0.0, 1.0, 0.5)
 age = st.number_input("Age", 18, 100, 30)
 
-# SAFE INPUTS (NO LIMITS)
+# SAFE INPUTS (NO LIMIT)
 total_debt = st.number_input(
     "Total Debt",
     min_value=0.0,
@@ -113,7 +112,7 @@ if st.button("🚀 Predict Risk"):
     risk_percent = prob * 100
 
     # =========================
-    # 🎯 RISK METER UI
+    # 📊 RISK METER
     # =========================
     st.subheader("📊 Risk Level")
 
@@ -129,30 +128,24 @@ if st.button("🚀 Predict Risk"):
         st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
 
     # =========================
-    # 🧠 SHAP EXPLANATION
+    # 🧠 SIMPLE EXPLANATION
     # =========================
-    st.subheader("🧠 Why this prediction?")
+    st.subheader("🧠 Key Risk Factors")
 
-    try:
-        explainer = shap.Explainer(model, X)
-        shap_values = explainer(input_data)
+    if debt > 0.5:
+        st.write("⬆️ High debt ratio increases risk")
 
-        feature_names = X.columns
-        impacts = shap_values.values[0]
+    if late_90 > 0:
+        st.write("⬆️ Late payments increase risk")
 
-        sorted_idx = np.argsort(np.abs(impacts))[::-1]
+    if income < 20000:
+        st.write("⬆️ Low income increases risk")
 
-        for i in sorted_idx[:3]:
-            if impacts[i] > 0:
-                st.write(f"⬆️ **{feature_names[i]}** increases risk")
-            else:
-                st.write(f"⬇️ **{feature_names[i]}** reduces risk")
-
-    except:
-        st.warning("⚠️ Explanation unavailable")
+    if revolving > 0.8:
+        st.write("⬆️ High credit usage increases risk")
 
     # =========================
-    # 💡 SMART SUGGESTIONS
+    # 💡 SUGGESTIONS
     # =========================
     st.subheader("💡 Recommendations")
 
@@ -161,7 +154,7 @@ if st.button("🚀 Predict Risk"):
         st.write("👉 Avoid late payments")
         st.write("👉 Improve repayment history")
     else:
-        st.write("👉 Maintain current financial habits")
+        st.write("👉 Maintain financial discipline")
         st.write("👉 Keep debt ratio low")
 
     st.markdown("---")
