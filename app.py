@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 # =========================
 @st.cache_data
 def load_data():
-    df = pd.read_csv("https://raw.githubusercontent.com/selva86/datasets/master/GiveMeSomeCredit.csv")
+    df = pd.read_csv("cs-training.csv")
     df.fillna(df.median(), inplace=True)
     return df
 
