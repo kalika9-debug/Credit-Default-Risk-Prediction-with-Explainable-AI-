@@ -1,31 +1,17 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 # =========================
-# PAGE CONFIG + STYLE
+# PAGE CONFIG
 # =========================
 st.set_page_config(page_title="Credit Risk Dashboard", layout="wide")
 
-st.markdown("""
-<style>
-.block-container {padding-top: 1.5rem;}
-.section-box {
-    background-color: #f8fafc;
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-}
-h2 {color: #1f3b4d;}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<h2>💳 Credit Risk Dashboard</h2>", unsafe_allow_html=True)
-st.caption("AI-powered credit risk analysis with actionable insights")
+st.title("💳 Credit Risk Dashboard")
+st.caption("Simple, actionable credit risk analysis")
 
 # =========================
 # LOAD MODEL
@@ -37,7 +23,6 @@ def load_model():
 
         df.replace("NA", np.nan, inplace=True)
         df.fillna(df.median(), inplace=True)
-
         df["DebtRatio"] = df["DebtRatio"].clip(0, 3)
 
         features = [
@@ -55,7 +40,7 @@ def load_model():
         )
 
         model = XGBClassifier(
-            n_estimators=150,
+            n_estimators=120,
             max_depth=4,
             learning_rate=0.1,
             scale_pos_weight=10,
@@ -108,38 +93,52 @@ def simple_model():
 # =========================
 # PREDICTION
 # =========================
-def predict():
+def predict(r, a, d, l):
     if model is not None:
         try:
-            X = np.array([[revolving, age, debt_ratio, late_90]])
+            X = np.array([[r, a, d, l]])
             prob = model.predict_proba(X)[0][1]
 
             # business rules
-            if debt_ratio > 2.5:
+            if d > 2.5:
                 prob = max(prob, 0.7)
-            if late_90 >= 3:
+            if l >= 3:
                 prob = max(prob, 0.8)
 
-            return prob, "XGBoost"
+            return prob
         except:
-            return simple_model(), "Fallback"
+            return simple_model()
     else:
-        return simple_model(), "Fallback"
+        return simple_model()
 
-prob, mode = predict()
+# current prediction
+prob = predict(revolving, age, debt_ratio, late_90)
 risk = prob * 100
 
 # =========================
-# RESULT SECTION
+# WHAT-IF IMPROVEMENT
+# =========================
+def improved_scenario():
+    new_revolving = min(revolving, 0.3)
+    new_debt = min(debt_ratio, 0.8)
+    new_late = 0
+
+    new_prob = predict(new_revolving, age, new_debt, new_late)
+    return new_prob
+
+improved_prob = improved_scenario()
+improved_risk = improved_prob * 100
+
+# =========================
+# RESULTS
 # =========================
 st.markdown("---")
 st.markdown("### 📊 Risk Analysis")
 
-col3, col4 = st.columns([1,2])
+col3, col4 = st.columns(2)
 
 with col3:
-    st.metric("Default Risk", f"{risk:.1f}%")
-    st.caption(f"Model: {mode}")
+    st.metric("Current Risk", f"{risk:.1f}%")
 
     if risk > 70:
         st.error("🚨 High Risk")
@@ -149,81 +148,58 @@ with col3:
         st.success("✅ Low Risk")
 
 with col4:
-    st.progress(prob)
+    st.metric("Improved Risk", f"{improved_risk:.1f}%")
+
+    change = risk - improved_risk
+
+    if change > 0:
+        st.success(f"⬇ Risk can reduce by {change:.1f}%")
+    else:
+        st.info("Already optimized")
 
 # =========================
-# FEATURE IMPORTANCE
+# SUGGESTIONS
 # =========================
-if model is not None:
-    st.markdown("### 📊 Key Drivers")
-
-    importance = model.feature_importances_
-
-    df_imp = pd.DataFrame({
-        "Feature": ["Utilization", "Age", "Debt Ratio", "Late Payments"],
-        "Importance": importance
-    }).sort_values(by="Importance")
-
-    st.bar_chart(df_imp.set_index("Feature"))
-
-# =========================
-# RECOMMENDATIONS
-# =========================
-st.markdown("### 🧠 Personalized Suggestions")
+st.markdown("### 🧠 Actionable Suggestions")
 
 tips = []
 
-# Utilization
-if revolving > 0.8:
-    tips.append("🚨 Reduce credit usage immediately.")
-elif revolving > 0.5:
-    tips.append("⚠️ Keep utilization below 30%.")
+if revolving > 0.3:
+    tips.append("Reduce credit utilization below 30%")
 
-# Debt
-if debt_ratio > 2.5:
-    tips.append("🚨 Reduce debt aggressively or increase income.")
-elif debt_ratio > 1:
-    tips.append("⚠️ Avoid taking new loans.")
+if debt_ratio > 1:
+    tips.append("Lower debt ratio by reducing loans or increasing income")
 
-# Late payments
-if late_90 >= 3:
-    tips.append("🚨 Multiple late payments detected. Use auto-pay.")
-elif late_90 > 0:
-    tips.append("⚠️ Avoid late payments using reminders.")
+if late_90 > 0:
+    tips.append("Avoid late payments (use auto-pay)")
 
-# Risk level
 if risk > 70:
-    tips.append("🚨 Avoid new credit until situation improves.")
-elif risk > 40:
-    tips.append("⚠️ Improve repayment consistency.")
-else:
-    tips.append("✅ Maintain current financial habits.")
+    tips.append("Avoid new loans until financials improve")
 
 if len(tips) == 0:
-    tips.append("✅ Financial profile is strong.")
+    tips.append("Maintain current financial discipline")
 
 for i, tip in enumerate(tips, 1):
     st.write(f"{i}. {tip}")
 
 # =========================
-# DOWNLOAD
+# DOWNLOAD REPORT
 # =========================
 report = pd.DataFrame({
-    "Revolving": [revolving],
-    "Age": [age],
-    "Debt": [total_debt],
-    "Income": [income],
-    "Late Payments": [late_90],
-    "Risk (%)": [risk],
-    "Model": [mode]
+    "Current Risk (%)": [risk],
+    "Improved Risk (%)": [improved_risk],
+    "Risk Reduction (%)": [risk - improved_risk],
+    "Utilization": [revolving],
+    "Debt Ratio": [debt_ratio],
+    "Late Payments": [late_90]
 })
 
 csv = report.to_csv(index=False).encode("utf-8")
 
 st.download_button(
-    "📄 Download Report",
+    "📄 Download Analysis Report",
     csv,
-    "risk_report.csv",
+    "risk_analysis.csv",
     "text/csv",
-    key="download_unique_btn"
+    key="final_download_btn"
 )
