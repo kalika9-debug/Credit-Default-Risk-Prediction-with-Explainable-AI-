@@ -48,10 +48,13 @@ def train_model():
 model, feature_names = train_model()
 
 # =========================
-# UI LAYOUT
+# LAYOUT
 # =========================
 col1, col2 = st.columns(2)
 
+# =========================
+# INPUT PANEL
+# =========================
 with col1:
     st.subheader("📥 Customer Details")
 
@@ -73,13 +76,15 @@ with col1:
     predict = st.button("🚀 Predict Risk")
 
 # =========================
-# OUTPUT SECTION
+# OUTPUT PANEL
 # =========================
 with col2:
 
     if predict:
 
+        # =========================
         # SAFE INPUT BUILD
+        # =========================
         input_dict = {
             "RevolvingUtilizationOfUnsecuredLines": revolving,
             "age": age,
@@ -95,17 +100,15 @@ with col2:
         input_df = pd.DataFrame([safe_input])
 
         # =========================
-        # PREDICTION
+        # MODEL PREDICTION
         # =========================
         prob = model.predict_proba(input_df)[0][1]
         safe_prob = float(prob)
-        safe_prob = max(0.0, min(1.0, safe_prob))  # clamp
+        safe_prob = max(0.0, min(1.0, safe_prob))
 
         risk_percent = safe_prob * 100
 
         st.subheader("📊 Risk Score")
-
-        # ✅ FIXED PROGRESS BAR
         st.progress(safe_prob)
 
         if risk_percent >= 75:
@@ -118,58 +121,43 @@ with col2:
             st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
 
         # =========================
-        # CHART
+        # 🧠 MODEL-BASED EXPLANATION
         # =========================
-        st.subheader("📈 Risk Visualization")
-
-        fig, ax = plt.subplots()
-        ax.bar(["Safe", "Risk"], [1 - safe_prob, safe_prob])
-        ax.set_ylabel("Probability")
-        st.pyplot(fig)
-
-        # =========================
-        # FEATURE IMPORTANCE
-        # =========================
-        st.subheader("📊 Feature Importance")
+        st.subheader("🧠 Key Drivers (Model-Based)")
 
         importances = model.feature_importances_
-        feat_df = pd.DataFrame({
+        input_array = input_df.values[0]
+
+        contributions = input_array * importances
+
+        contrib_df = pd.DataFrame({
             "Feature": feature_names,
-            "Importance": importances
-        }).sort_values(by="Importance", ascending=False).head(5)
+            "Contribution": contributions
+        })
 
-        fig2, ax2 = plt.subplots()
-        ax2.barh(feat_df["Feature"], feat_df["Importance"])
-        ax2.invert_yaxis()
-        st.pyplot(fig2)
+        contrib_df["Abs"] = np.abs(contrib_df["Contribution"])
+        contrib_df = contrib_df.sort_values(by="Abs", ascending=False)
 
-        # =========================
-        # INSIGHTS
-        # =========================
-        st.subheader("🧠 Insights")
+        top = contrib_df.head(3)
 
-        if debt > 0.5:
-            st.write("⬆️ High debt ratio increases risk")
-
-        if late_90 > 0:
-            st.write("⬆️ Late payments increase risk")
-
-        if income < 20000:
-            st.write("⬆️ Low income increases risk")
-
-        if revolving > 0.8:
-            st.write("⬆️ High credit usage increases risk")
+        for _, row in top.iterrows():
+            if row["Contribution"] > 0:
+                st.write(f"⬆️ **{row['Feature']}** increased risk")
+            else:
+                st.write(f"⬇️ **{row['Feature']}** reduced risk")
 
         # =========================
-        # RECOMMENDATIONS
+        # 📊 SINGLE CLEAN CHART
         # =========================
-        st.subheader("💡 Recommendations")
+        st.subheader("📊 Top Feature Impact")
 
-        if risk_percent >= 50:
-            st.write("👉 Reduce debt levels")
-            st.write("👉 Avoid late payments")
-            st.write("👉 Improve repayment history")
-        else:
-            st.write("👉 Maintain current financial discipline")
+        fig, ax = plt.subplots()
+
+        top_plot = contrib_df.head(5)
+
+        ax.barh(top_plot["Feature"], top_plot["Contribution"])
+        ax.invert_yaxis()
+
+        st.pyplot(fig)
 
         st.success("✅ Analysis complete")
