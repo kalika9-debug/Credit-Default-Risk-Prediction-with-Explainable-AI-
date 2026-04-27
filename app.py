@@ -43,18 +43,15 @@ def train_model():
     )
 
     model.fit(X, y)
-    return model, X.columns
+    return model, list(X.columns)
 
 model, feature_names = train_model()
 
 # =========================
-# LAYOUT (2 COLUMNS)
+# INPUT UI
 # =========================
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns(2)
 
-# =========================
-# INPUT PANEL
-# =========================
 with col1:
     st.subheader("📥 Customer Details")
 
@@ -69,40 +66,46 @@ with col1:
         st.stop()
 
     debt = total_debt / income
-    st.write(f"📊 Debt Ratio: **{debt:.2f}**")
+    st.write(f"📊 Debt Ratio: {debt:.2f}")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
     predict = st.button("🚀 Predict Risk")
 
 # =========================
-# OUTPUT PANEL
+# OUTPUT
 # =========================
 with col2:
 
     if predict:
 
-        input_df = pd.DataFrame([{
+        # BASE INPUT (minimal)
+        input_dict = {
             "RevolvingUtilizationOfUnsecuredLines": revolving,
             "age": age,
-            "NumberOfTime30-59DaysPastDueNotWorse": 0,
             "DebtRatio": debt,
             "MonthlyIncome": income,
-            "NumberOfOpenCreditLinesAndLoans": 5,
-            "NumberOfTimes90DaysLate": late_90,
-            "NumberRealEstateLoansOrLines": 1,
-            "NumberOfTime60-89DaysPastDueNotWorse": 0,
-            "NumberOfDependents": 1
-        }])
+            "NumberOfTimes90DaysLate": late_90
+        }
 
-        input_df = input_df[feature_names]
+        # SAFE FEATURE BUILD (THIS IS THE KEY FIX)
+        safe_input = {}
 
+        for col in feature_names:
+            if col in input_dict:
+                safe_input[col] = input_dict[col]
+            else:
+                safe_input[col] = 0  # fill missing safely
+
+        input_df = pd.DataFrame([safe_input])
+
+        # =========================
+        # PREDICTION
+        # =========================
         prob = model.predict_proba(input_df)[0][1]
         risk_percent = prob * 100
 
         st.subheader("📊 Risk Score")
-
-        # Risk meter
         st.progress(prob)
 
         if risk_percent >= 75:
@@ -115,17 +118,16 @@ with col2:
             st.success(f"✅ LOW RISK ({risk_percent:.1f}%)")
 
         # =========================
-        # 📈 RISK BAR CHART
+        # CHART
         # =========================
         st.subheader("📈 Risk Visualization")
 
         fig, ax = plt.subplots()
-        ax.bar(["Safe", "Risk"], [1-prob, prob])
-        ax.set_ylabel("Probability")
+        ax.bar(["Safe", "Risk"], [1 - prob, prob])
         st.pyplot(fig)
 
         # =========================
-        # 📊 FEATURE IMPORTANCE
+        # FEATURE IMPORTANCE
         # =========================
         st.subheader("📊 Feature Importance")
 
@@ -141,9 +143,9 @@ with col2:
         st.pyplot(fig2)
 
         # =========================
-        # 🧠 INSIGHTS
+        # INSIGHTS
         # =========================
-        st.subheader("🧠 Key Insights")
+        st.subheader("🧠 Insights")
 
         if debt > 0.5:
             st.write("⬆️ High debt ratio increases risk")
@@ -156,17 +158,5 @@ with col2:
 
         if revolving > 0.8:
             st.write("⬆️ High credit usage increases risk")
-
-        # =========================
-        # 💡 SUGGESTIONS
-        # =========================
-        st.subheader("💡 Recommendations")
-
-        if risk_percent >= 50:
-            st.write("👉 Reduce debt levels")
-            st.write("👉 Avoid late payments")
-            st.write("👉 Improve repayment history")
-        else:
-            st.write("👉 Maintain current financial discipline")
 
         st.success("✅ Analysis complete")
