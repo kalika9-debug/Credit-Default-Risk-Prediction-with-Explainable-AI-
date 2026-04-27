@@ -1,15 +1,43 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Credit Risk App", layout="wide")
+st.set_page_config(page_title="Credit Risk ML", layout="wide")
 
-st.title("💳 Credit Risk Predictor")
-st.write("Simple & Reliable Risk Estimation")
+st.title("💳 Credit Risk Predictor (ML Powered)")
+
+# =========================
+# LOAD DATA
+# =========================
+@st.cache_data
+def load_data():
+    df = pd.read_csv("cs-training.csv")
+    df.fillna(df.median(), inplace=True)
+    return df
+
+df = load_data()
+
+# =========================
+# TRAIN MODEL (SAFE)
+# =========================
+@st.cache_resource
+def train_model():
+    X = df.drop(columns=["SeriousDlqin2yrs"])
+    y = df["SeriousDlqin2yrs"]
+
+    model = LogisticRegression(max_iter=1000)
+
+    # 🔥 avoid feature mismatch
+    model.fit(X.values, y.values)
+
+    return model, list(X.columns)
+
+model, feature_names = train_model()
 
 # =========================
 # UI LAYOUT
@@ -39,29 +67,31 @@ with col1:
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
 # =========================
-# SIMPLE MODEL (NO ML LIBS)
+# BUILD INPUT
 # =========================
-def simple_model():
-    score = 0
+input_dict = {
+    "RevolvingUtilizationOfUnsecuredLines": revolving,
+    "age": age,
+    "NumberOfTime30-59DaysPastDueNotWorse": 0,
+    "DebtRatio": debt_ratio,
+    "MonthlyIncome": income,
+    "NumberOfOpenCreditLinesAndLoans": 5,
+    "NumberOfTimes90DaysLate": late_90,
+    "NumberRealEstateLoansOrLines": 1,
+    "NumberOfTime60-89DaysPastDueNotWorse": 0,
+    "NumberOfDependents": 1
+}
 
-    # risk factors
-    score += revolving * 0.4
-    score += min(debt_ratio, 5) * 0.2
-    score += late_90 * 0.1
-
-    # safe factor
-    score -= age * 0.002
-
-    # normalize
-    score = max(0, min(score, 1))
-
-    return score
+# keep correct order
+input_list = [input_dict.get(col, 0) for col in feature_names]
+input_array = np.array([input_list])
 
 # =========================
 # OUTPUT
 # =========================
 with col2:
-    prob = simple_model()
+    prob = model.predict_proba(input_array)[0][1]
+    prob = float(np.clip(prob, 0, 1))
     risk = prob * 100
 
     st.subheader("📊 Risk Score")
@@ -76,24 +106,21 @@ with col2:
         st.success(f"✅ LOW RISK ({risk:.1f}%)")
 
     # =========================
-    # FEATURE IMPACT
+    # FEATURE IMPORTANCE
     # =========================
-    st.subheader("📊 Key Drivers")
+    st.subheader("📊 Model Coefficients")
 
-    data = {
-        "Feature": ["Utilization", "Debt Ratio", "Late Payments", "Age"],
-        "Impact": [
-            revolving * 0.4,
-            min(debt_ratio, 5) * 0.2,
-            late_90 * 0.1,
-            -age * 0.002
-        ]
-    }
+    coef = model.coef_[0]
 
-    df = pd.DataFrame(data)
+    imp_df = pd.DataFrame({
+        "Feature": feature_names,
+        "Impact": coef
+    }).sort_values(by="Impact", ascending=False)
 
     fig, ax = plt.subplots()
-    ax.barh(df["Feature"], df["Impact"])
+    top = imp_df.head(5)
+
+    ax.barh(top["Feature"], top["Impact"])
     ax.invert_yaxis()
 
     st.pyplot(fig)
@@ -101,14 +128,8 @@ with col2:
     # =========================
     # DOWNLOAD REPORT
     # =========================
-    report = pd.DataFrame({
-        "Revolving": [revolving],
-        "Age": [age],
-        "Debt": [total_debt],
-        "Income": [income],
-        "Late Payments": [late_90],
-        "Risk (%)": [risk]
-    })
+    report = pd.DataFrame([input_dict])
+    report["Risk (%)"] = risk
 
     csv = report.to_csv(index=False).encode("utf-8")
 
