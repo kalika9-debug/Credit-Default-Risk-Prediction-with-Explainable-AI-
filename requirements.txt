@@ -4,3 +4,6 @@ pandas
 scikit-learn
 xgboost
 matplotlib
+shap
+numba
+llvmlite
