@@ -1,7 +1,6 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 
 # =========================
@@ -9,45 +8,8 @@ import matplotlib.pyplot as plt
 # =========================
 st.set_page_config(page_title="Credit Risk App", layout="wide")
 
-st.markdown(
-    "<h1 style='text-align:center;'>💳 Credit Risk Prediction</h1>",
-    unsafe_allow_html=True
-)
-
-st.markdown("---")
-
-# =========================
-# LOAD DATA
-# =========================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("cs-training.csv")
-    df.fillna(df.median(), inplace=True)
-    return df
-
-df = load_data()
-
-# =========================
-# TRAIN MODEL (NO PIPELINE)
-# =========================
-@st.cache_resource
-def train_model():
-    X = df.drop(columns=["SeriousDlqin2yrs"])
-    y = df["SeriousDlqin2yrs"]
-
-    model = XGBClassifier(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.05,
-        eval_metric="logloss"
-    )
-
-    # 🔥 IMPORTANT: remove feature-name dependency
-    model.fit(X.values, y.values)
-
-    return model, list(X.columns)
-
-model, feature_names = train_model()
+st.title("💳 Credit Risk Predictor")
+st.write("Simple & Reliable Risk Estimation")
 
 # =========================
 # UI LAYOUT
@@ -55,7 +17,7 @@ model, feature_names = train_model()
 col1, col2 = st.columns(2)
 
 # =========================
-# INPUT SECTION
+# INPUTS
 # =========================
 with col1:
     st.subheader("📥 Customer Details")
@@ -70,73 +32,68 @@ with col1:
         st.error("Income must be > 0")
         st.stop()
 
-    debt_ratio = np.clip(total_debt / income, 0, 5)
+    debt_ratio = total_debt / income
 
-    st.markdown(f"""
-    <div style="padding:10px;border-radius:10px;background:#111;color:white;">
-        Debt Ratio: <b>{debt_ratio:.2f}</b>
-    </div>
-    """, unsafe_allow_html=True)
+    st.write(f"Debt Ratio: {debt_ratio:.2f}")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
 # =========================
-# BUILD INPUT (STRICT ORDER)
+# SIMPLE MODEL (NO ML LIBS)
 # =========================
-input_dict = {
-    "RevolvingUtilizationOfUnsecuredLines": revolving,
-    "age": age,
-    "NumberOfTime30-59DaysPastDueNotWorse": 0,
-    "DebtRatio": debt_ratio,
-    "MonthlyIncome": income,
-    "NumberOfOpenCreditLinesAndLoans": 5,
-    "NumberOfTimes90DaysLate": late_90,
-    "NumberRealEstateLoansOrLines": 1,
-    "NumberOfTime60-89DaysPastDueNotWorse": 0,
-    "NumberOfDependents": 1
-}
+def simple_model():
+    score = 0
 
-# Convert to correct order
-input_list = [input_dict.get(col, 0) for col in feature_names]
-input_array = np.array([input_list])
+    # risk factors
+    score += revolving * 0.4
+    score += min(debt_ratio, 5) * 0.2
+    score += late_90 * 0.1
+
+    # safe factor
+    score -= age * 0.002
+
+    # normalize
+    score = max(0, min(score, 1))
+
+    return score
 
 # =========================
-# OUTPUT SECTION
+# OUTPUT
 # =========================
 with col2:
-    st.subheader("📊 Risk Score")
-
-    prob = model.predict_proba(input_array)[0][1]
-    prob = float(np.clip(prob, 0, 1))
+    prob = simple_model()
     risk = prob * 100
+
+    st.subheader("📊 Risk Score")
 
     st.progress(prob)
 
-    if risk >= 75:
-        st.error(f"🚨 VERY HIGH RISK ({risk:.1f}%)")
-    elif risk >= 50:
-        st.warning(f"⚠️ HIGH RISK ({risk:.1f}%)")
-    elif risk >= 30:
-        st.info(f"⚠️ MODERATE RISK ({risk:.1f}%)")
+    if risk > 70:
+        st.error(f"🚨 HIGH RISK ({risk:.1f}%)")
+    elif risk > 40:
+        st.warning(f"⚠️ MEDIUM RISK ({risk:.1f}%)")
     else:
         st.success(f"✅ LOW RISK ({risk:.1f}%)")
 
     # =========================
-    # FEATURE IMPORTANCE CHART
+    # FEATURE IMPACT
     # =========================
     st.subheader("📊 Key Drivers")
 
-    importances = model.feature_importances_
+    data = {
+        "Feature": ["Utilization", "Debt Ratio", "Late Payments", "Age"],
+        "Impact": [
+            revolving * 0.4,
+            min(debt_ratio, 5) * 0.2,
+            late_90 * 0.1,
+            -age * 0.002
+        ]
+    }
 
-    imp_df = pd.DataFrame({
-        "Feature": feature_names,
-        "Importance": importances
-    }).sort_values(by="Importance", ascending=False)
+    df = pd.DataFrame(data)
 
     fig, ax = plt.subplots()
-
-    top = imp_df.head(5)
-    ax.barh(top["Feature"], top["Importance"])
+    ax.barh(df["Feature"], df["Impact"])
     ax.invert_yaxis()
 
     st.pyplot(fig)
@@ -144,14 +101,20 @@ with col2:
     # =========================
     # DOWNLOAD REPORT
     # =========================
-    report = pd.DataFrame([input_dict])
-    report["Risk (%)"] = risk
+    report = pd.DataFrame({
+        "Revolving": [revolving],
+        "Age": [age],
+        "Debt": [total_debt],
+        "Income": [income],
+        "Late Payments": [late_90],
+        "Risk (%)": [risk]
+    })
 
     csv = report.to_csv(index=False).encode("utf-8")
 
     st.download_button(
         "📄 Download Report",
         csv,
-        "credit_risk_report.csv",
+        "risk_report.csv",
         "text/csv"
     )
