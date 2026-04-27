@@ -1,130 +1,128 @@
 # 💳 Credit Default Risk Prediction with Explainable AI (XGBoost + SHAP)
 
-> A simple but practical machine learning project to predict loan default risk — with explanations, not just predictions.
+> Predict loan default risk — and explain *why* it happens.
 
 ---
 
 ## 🚀 Overview
 
-In real life, banks don’t just want to know *who* might default — they want to know *why*.
+In real-world finance, predicting defaults isn’t enough — decisions must be explainable.
 
-This project focuses on building a model that predicts whether a customer is likely to default on a loan, and more importantly, explains the reasoning behind that prediction using SHAP.
+This project builds a machine learning model to:
+- Predict whether a customer is likely to default
+- Provide insights into *why* the prediction was made using SHAP
 
 ---
 
-## 🎯 What this project does
+## 🎯 Key Features
 
-* Predicts if a customer is risky or safe
-* Highlights the key factors behind the prediction
-* Makes the model more transparent and understandable
+✔ Predicts default probability  
+✔ Uses multiple models and selects the best  
+✔ Explains predictions using SHAP  
+✔ Interactive Streamlit app  
 
 ---
 
 ## 📊 Dataset
 
-I used the **GiveMeSomeCredit dataset from Kaggle**, which includes:
+**GiveMeSomeCredit (Kaggle)**
 
-* Income details
-* Debt ratio
-* Past payment behavior
-* Other financial indicators
-
----
-
-## ⚙️ Models I tried
-
-Instead of jumping straight to one model, I compared a few:
-
-* Logistic Regression (baseline)
-* Decision Tree
-* **XGBoost (performed the best)**
+Includes:
+- Credit usage
+- Debt ratio
+- Income
+- Past payment delays
 
 ---
 
-## 📈 How I evaluated the models
+## ⚙️ Models Compared
 
-I didn’t rely on just accuracy. I used:
+- Logistic Regression (baseline)
+- Decision Tree
+- **XGBoost (best performer)**
 
-* Precision
-* Recall
-* F1 Score
-* **AUC (most important here)**
+---
 
-👉 XGBoost clearly performed better, especially in identifying defaulters.
+## 📈 Evaluation Metrics
+
+Used multiple metrics (not just accuracy):
+
+- Precision  
+- Recall  
+- F1 Score  
+- **AUC (primary metric)**  
+
+👉 XGBoost achieved the best AUC and handled imbalance better.
 
 ---
 
 ## 🧠 Explainability (SHAP)
 
-This is where things get interesting.
+Instead of a black-box model, SHAP helps explain predictions.
 
-Using SHAP, I was able to see:
+### Insights:
 
-* Which features matter the most
-* How each feature affects the prediction
-
-### Key takeaways:
-
-* Higher **debt ratio** increases risk
-* Lower **income** makes repayment harder
-* Past **delinquencies** strongly signal future default
-
-👉 This turns the model from a black box into something you can actually trust.
+- 📈 Higher **debt ratio** → increases risk  
+- 📉 Lower **income** → higher default probability  
+- ⏱️ Past **late payments** → strongest indicator  
 
 ---
 
-## 🌐 Deployment
+## 🌐 Live App
 
-I built a simple app using Streamlit where you can:
+👉 *(Add your Streamlit link here)*  
 
-* Enter customer details
-* Get instant predictions
-* See the probability of default
+Features:
+- Input customer details  
+- Get risk percentage  
+- Simple, fast predictions  
 
-To run locally:
+---
 
-```
-streamlit run app.py
-```
+## 🛠️ Tech Stack
+
+- Python  
+- Pandas / NumPy  
+- Scikit-learn  
+- XGBoost  
+- SHAP  
+- Streamlit  
 
 ---
 
 ## 📁 Project Structure
-
-```
 credit-default-prediction/
 │
 ├── app.py
-├── model.pkl
 ├── requirements.txt
 ├── README.md
-```
 
 ---
 
 ## ⚠️ Limitations
 
-* The model was trained on a subset of data (due to system limits)
-* Could be improved with more data and tuning
+- Trained on a subset of data  
+- Limited hyperparameter tuning  
 
 ---
 
-## 💡 What I’d improve next
+## 💡 Future Improvements
 
-* Train on the full dataset
-* Tune hyperparameters
-* Add SHAP visualizations directly into the app
-* Improve the UI
-
----
-
-## 👩‍💻 About me
-
-**Kalika Tambat**
-Student exploring data science, machine learning, and real-world problem solving.
+- Full dataset training  
+- Hyperparameter optimization  
+- SHAP visual dashboards  
+- UI enhancement  
 
 ---
 
-## ⭐ Final note
+## 👩‍💻 About Me
 
-This project is a step toward building machine learning systems that are not just accurate, but also **explainable and trustworthy**.
+**Kalika Tambat**  
+BSc Data Science student exploring ML and real-world problem solving.
+
+---
+
+## ⭐ Final Thought
+
+Machine learning shouldn’t just predict — it should explain.  
+This project is a step toward building **trustworthy AI systems**.
