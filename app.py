@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Credit Risk Intelligence", layout="wide")
+st.set_page_config(page_title="Credit Risk App", layout="wide")
 
-st.title("💳 Credit Risk Intelligence")
+st.title("💳 Credit Risk Prediction")
 
 # =========================
 # LOAD DATA
@@ -23,7 +23,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# TRAIN MODEL (NO PIPELINE → NO ERROR)
+# TRAIN MODEL (NO PIPELINE)
 # =========================
 @st.cache_resource
 def train_model():
@@ -37,19 +37,16 @@ def train_model():
         eval_metric="logloss"
     )
 
-    model.fit(X, y)
-    return model, X
+    model.fit(X.values, y.values)  # 🔥 KEY FIX (no feature names)
+    return model, list(X.columns)
 
-model, X = train_model()
+model, feature_names = train_model()
 
 # =========================
 # UI
 # =========================
 col1, col2 = st.columns(2)
 
-# =========================
-# INPUTS
-# =========================
 with col1:
     st.subheader("📥 Customer Details")
 
@@ -63,36 +60,41 @@ with col1:
         st.error("Income must be > 0")
         st.stop()
 
-    debt_ratio = total_debt / income
-    debt_ratio = np.clip(debt_ratio, 0, 5)
-
+    debt_ratio = np.clip(total_debt / income, 0, 5)
     st.write(f"Debt Ratio: {debt_ratio:.2f}")
 
     late_90 = st.slider("90 Days Late", 0, 10, 0)
 
 # =========================
-# SAFE INPUT (KEY FIX)
+# BUILD INPUT (STRICT ORDER)
 # =========================
-# 👉 Start from REAL DATA ROW
-input_df = X.iloc[[0]].copy()
+input_dict = {
+    "RevolvingUtilizationOfUnsecuredLines": revolving,
+    "age": age,
+    "NumberOfTime30-59DaysPastDueNotWorse": 0,
+    "DebtRatio": debt_ratio,
+    "MonthlyIncome": income,
+    "NumberOfOpenCreditLinesAndLoans": 5,
+    "NumberOfTimes90DaysLate": late_90,
+    "NumberRealEstateLoansOrLines": 1,
+    "NumberOfTime60-89DaysPastDueNotWorse": 0,
+    "NumberOfDependents": 1
+}
 
-# 👉 Replace only what user controls
-input_df["RevolvingUtilizationOfUnsecuredLines"] = revolving
-input_df["age"] = age
-input_df["DebtRatio"] = debt_ratio
-input_df["MonthlyIncome"] = income
-input_df["NumberOfTimes90DaysLate"] = late_90
+# 👉 Create array in exact order
+input_list = [input_dict.get(col, 0) for col in feature_names]
+input_array = np.array([input_list])
 
 # =========================
 # PREDICTION
 # =========================
 with col2:
-    prob = model.predict_proba(input_df)[0][1]
+
+    prob = model.predict_proba(input_array)[0][1]
     prob = float(np.clip(prob, 0, 1))
     risk = prob * 100
 
     st.subheader("📊 Risk Score")
-
     st.progress(prob)
 
     if risk > 70:
@@ -103,14 +105,14 @@ with col2:
         st.success(f"✅ Low Risk ({risk:.1f}%)")
 
     # =========================
-    # SIMPLE FEATURE IMPORTANCE (SAFE)
+    # FEATURE IMPORTANCE
     # =========================
-    st.subheader("📊 Key Factors")
+    st.subheader("📊 Key Drivers")
 
     importances = model.feature_importances_
 
     imp_df = pd.DataFrame({
-        "Feature": X.columns,
+        "Feature": feature_names,
         "Importance": importances
     }).sort_values(by="Importance", ascending=False)
 
@@ -121,18 +123,3 @@ with col2:
     ax.invert_yaxis()
 
     st.pyplot(fig)
-
-    # =========================
-    # DOWNLOAD REPORT
-    # =========================
-    report = input_df.copy()
-    report["Risk"] = risk
-
-    csv = report.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        "Download Report",
-        csv,
-        "risk_report.csv",
-        "text/csv"
-    )
