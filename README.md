@@ -96,12 +96,3 @@ Develop a machine learning-based predictive system capable of analyzing financia
 - Deploy the application on cloud platforms for scalability
 - Integrate advanced visualization dashboards for risk monitoring
 
----
-
-# Project Links
-
-## GitHub Repository
-https://github.com/kalika9-debug/
-
-## Live Demo
-Credit Risk · Streamlit
